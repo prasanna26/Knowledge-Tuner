@@ -28,7 +28,7 @@ class ModelProvider(ABC):
     """Abstract base class for all model providers"""
     
     @abstractmethod
-    def generate_content(self, messages: List[Message], tools: Optional[List[Dict]] = None, max_tokens: Optional[int] = None, temperature: float = 0.7, **kwargs ) -> ModelResponse:
+    def generate(self, messages: List[Message], tools: Optional[List[Dict]] = None, max_tokens: Optional[int] = None, temperature: float = 0.7, **kwargs ) -> ModelResponse:
         """Generate content using the specified model"""
         pass
     

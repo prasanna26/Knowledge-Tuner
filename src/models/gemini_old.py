@@ -23,24 +23,6 @@ class GeminiProvider(ModelProvider):
         response = requests.get(image_url)
         return types.Part.from_bytes(mime_type="image/jpeg", data=response.content)
     
-    def _create_config(self, tools: Optional[List[Dict]] = None) -> Optional[types.GenerateContentConfig]:
-            """Create Gemini configuration with tools if provided"""
-            if not tools:
-                return None
-                
-            function_declarations = []
-            for tool in tools:
-                if "function" in tool:
-                    function_declarations.append({
-                        "name": tool["function"]["name"],
-                        "description": tool["function"].get("description", ""),
-                        "parameters": tool["function"]["parameters"]
-                    })
-            
-            # Initialize with functions
-            tools_config = types.Tool(function_declarations=function_declarations)
-            return types.GenerateContentConfig(tools=[tools_config])
-    
     async def generate(
         self, 
         messages: List[Message], 
@@ -69,7 +51,7 @@ class GeminiProvider(ModelProvider):
             elif msg.role == "assistant":
                 for tool_call in msg.tool_calls if msg.tool_calls else []:
                     
-                    gemini_messages.append(types.Content(role="model", parts=[types.Part(function_call=types.FunctionCall(name=tool_call["name"], args=tool_call["arguments"]))]))
+                    gemini_messages.append(types.Content(role="model", parts=[types.Part(text=f"Tool call: {tool_call['name']} ")]))
                     tool_call_mapping[tool_call["id"]] = tool_call["name"]
                 
             elif msg.role == "tool":
@@ -96,7 +78,11 @@ class GeminiProvider(ModelProvider):
                     
                         
                     gemini_messages.append(types.Content(role="user", parts=[
-                        types.Part(function_response = types.FunctionResponse(name=tool_call_mapping[msg.tool_call_id], response=response_content))
+                        # types.Part.from_function_response(
+                        #     name=tool_call_mapping[msg.tool_call_id],
+                        #     response=response_content
+                        # ),
+                        types.Part(text=f"Tool response: {msg.content}")
                     ]))
                 except json.JSONDecodeError:
                     # Handle case where content isn't valid JSON
@@ -109,13 +95,20 @@ class GeminiProvider(ModelProvider):
                     ]))
                 
                 continue
-            
-            elif(msg.role == "user"):
-                gemini_messages.append(types.UserContent(parts=[types.Part(text=msg.content)]))
                 
             # Map roles
             role = "user" if msg.role == "user" else "model"
             
+            # Handle multimodal content
+            # if isinstance(msg.content, str):
+            #     if(role == "user"):
+            #         gemini_messages.append(types.UserContent(parts=[types.Part(text=msg.content)]))
+            #     else:
+            #         gemini_messages.append(types.ModelContent(parts=[types.Part(text=msg.content)]))
+            #     # gemini_messages.append({
+            #     #     "role": role, 
+            #     #     "parts": [{"text": msg.content}]
+            #     # })
             if not isinstance(msg.content, str):
                 # Process multimodal content
                 parts = []
@@ -158,12 +151,54 @@ class GeminiProvider(ModelProvider):
             "max_output_tokens": max_tokens,
             **kwargs
         }
-        # Replace the placeholder with:
-        config = self._create_config(tools)
+        
+        if tools:
+            function_declarations = []
+            for tool in tools:
+                if "function" in tool:
+                    function_declarations.append({
+                        "name": tool["function"]["name"],
+                        "description": tool["function"].get("description", ""),
+                        "parameters": tool["function"]["parameters"]
+                    })
+            
+            # Initialize with functions
+            tools = types.Tool(function_declarations=function_declarations)
+            config = types.GenerateContentConfig(tools=[tools])
+        
+        # Create chat session
+        # chat = self.client.chats.create(model=self.model_name, config=config, history=gemini_messages)
         print(f"🔍 Gemini Messages being sent in history: {gemini_messages}")
         
+        # Pass only the last message or a valid part type to send_message
+        # if isinstance(gemini_messages[-1]["parts"], list):
+        #     last_message_parts = gemini_messages[-1]["parts"]
+        #     if len(last_message_parts) == 1 and "text" in last_message_parts[0]:
+        #         message_to_send = last_message_parts[0]["text"]
+        #     else:
+        #         raise ValueError("Gemini message parts must contain a single text part.")
+        # else:
+        #     message_to_send = gemini_messages[-1]["parts"]
+        message_to_send : types.Content = gemini_messages[-1]
+        if isinstance(message_to_send, types.UserContent):
+            message_to_send = message_to_send.parts[0].text
+        elif isinstance(message_to_send, types.Content):
+            message_to_send = message_to_send.parts[0]
+        elif isinstance(message_to_send, types.ModelContent):
+            print("******Message being sent is a model content type *****************")
+            message_to_send = message_to_send.parts[0]
+        
+
+        # Send message to Gemini
+        print(f"🔍 Gemini Message being sent: {message_to_send}")
+        # response = chat.send_message(message=message_to_send, config=config)
         response = self.client.models.generate_content(model=self.model_name,contents=gemini_messages,config=config)
         
+        # for message in chat.get_history():
+        #     print(f"🔍 Gemini Message in history: {message}")
+        #     print(f'role - {message.role}', end=": ")
+        #     print(message.parts[0].text)
+        # response = self.client.models.generate_content(model=self.model_name,contents=gemini_messages,config=config)
         
         print(f"🔍 Gemini Response: {response}")
         
@@ -193,7 +228,7 @@ class GeminiProvider(ModelProvider):
                     content += part.text
         
         return ModelResponse(
-            text=response.text if response.text else "N/A",
+            text=content,
             tool_calls=tool_calls if tool_calls else None,
             usage=None  # Gemini doesn't provide token usage in the same way
         )

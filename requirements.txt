@@ -6,3 +6,6 @@ google-genai
 rich
 termcolor
 openai
+anthropic
+dotenv
+setuptools

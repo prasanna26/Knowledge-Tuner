@@ -20,7 +20,7 @@ class OpenAIProvider(ModelProvider):
         
 
 
-    async def generate_content(
+    async def generate(
         self,
         messages: List[Message],
         tools: Optional[List[Dict]] = None,
