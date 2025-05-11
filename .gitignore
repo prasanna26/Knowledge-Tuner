@@ -3,3 +3,4 @@ venv/
 *__pycache__*
 gemini_sample*.py
 LICENSE
+enerbix/*

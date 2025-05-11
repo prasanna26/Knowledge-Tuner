@@ -9,3 +9,10 @@ openai
 anthropic
 dotenv
 setuptools
+rich
+plotly
+pandas
+scikit-learn
+termcolor
+ipython
+nest-asyncio

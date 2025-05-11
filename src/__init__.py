@@ -3,9 +3,9 @@ import os
 import sys
 
 # Add src directory to path
-# src_dir = os.path.dirname(os.path.abspath(__file__))
-# if src_dir not in sys.path:
-#     sys.path.append(src_dir)
+src_dir = os.path.dirname(os.path.abspath(__file__))
+if src_dir not in sys.path:
+    sys.path.append(src_dir)
 
 from models.base import Message, ModelResponse
 from models.openai import OpenAIProvider
